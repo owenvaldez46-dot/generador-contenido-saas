@@ -7,10 +7,10 @@ from supabase import create_client, Client
 
 app = FastAPI(title="Generador de Contenido SaaS")
 
-# Conexión al motor gratuito de Groq
-groq_api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
+# Forzar conexión directa a la API de Groq
+groq_key = os.getenv("GROQ_API_KEY")
 openai_client = OpenAI(
-    api_key=groq_api_key,
+    api_key=groq_key,
     base_url="https://api.groq.com/openai/v1"
 )
 
@@ -32,7 +32,7 @@ def generar_contenido(req: GenerateRequest):
     if not email:
         raise HTTPException(status_code=400, detail="El correo electrónico es obligatorio.")
 
-    # 1. Consulta de usuario en Supabase
+    # 1. Consulta en Supabase
     res = supabase.table("profiles").select("*").eq("email", email).execute()
     user_data = res.data
 
@@ -40,7 +40,7 @@ def generar_contenido(req: GenerateRequest):
         try: user_data = json.loads(user_data)
         except Exception: user_data = []
 
-    # 2. Asignación inicial de 3 créditos
+    # 2. Control de créditos
     if not user_data:
         new_user = {"email": email, "credits": 3}
         supabase.table("profiles").insert(new_user).execute()
@@ -49,25 +49,18 @@ def generar_contenido(req: GenerateRequest):
         row = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else user_data
         credits_left = row.get("credits", 3) if isinstance(row, dict) else 3
 
-    # 3. Control de saldo
     if credits_left <= 0:
         raise HTTPException(
             status_code=400, 
             detail="Has agotado tus 3 créditos gratuitos. Haz clic en 'Comprar más créditos' para continuar."
         )
 
-    # 4. Generación optimizada con Llama 3.1
-    system_prompt = (
-        "Eres un Copywriter profesional y estratega de contenido viral. "
-        "Escribe respuestas con ganchos (hooks) atractivos, estructura clara, "
-        "emojis estratégicos y llamados a la acción efectivos."
-    )
-
+    # 3. Generación con modelo activo de Groq
     try:
         response = openai_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": "Eres un Copywriter profesional y estratega de contenido viral."},
                 {"role": "user", "content": req.prompt}
             ],
             max_tokens=600
@@ -76,7 +69,7 @@ def generar_contenido(req: GenerateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en la IA: {str(e)}")
 
-    # 5. Descuento de crédito
+    # 4. Descontar crédito
     new_credits = credits_left - 1
     supabase.table("profiles").update({"credits": new_credits}).eq("email", email).execute()
 
