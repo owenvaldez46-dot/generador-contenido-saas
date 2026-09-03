@@ -2,7 +2,7 @@ import os
 import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from openai import OpenAI
+from groq import Groq
 from supabase import create_client, Client
 
 app = FastAPI(title="Generador de Contenido SaaS")
@@ -21,12 +21,11 @@ def home():
 
 @app.post("/api/v1/generar")
 def generar_contenido(req: GenerateRequest):
-    # Validar que la clave de Groq exista en Render
     groq_key = os.getenv("GROQ_API_KEY")
     if not groq_key or not groq_key.startswith("gsk_"):
         raise HTTPException(
             status_code=500, 
-            detail="Error de configuración: La variable GROQ_API_KEY no existe en Render o no empieza por 'gsk_'."
+            detail="Error: La variable GROQ_API_KEY no está configurada o no empieza por 'gsk_' en Render."
         )
 
     email = req.email.strip().lower()
@@ -58,12 +57,9 @@ def generar_contenido(req: GenerateRequest):
             detail="Has agotado tus 3 créditos gratuitos. Haz clic en 'Comprar más créditos' para continuar."
         )
 
-    # 3. Instanciar cliente apuntando EXCLUSIVAMENTE a Groq
+    # 3. Petición nativa a la API de Groq
     try:
-        client = OpenAI(
-            api_key=groq_key,
-            base_url="https://api.groq.com/openai/v1"
-        )
+        client = Groq(api_key=groq_key)
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -75,7 +71,7 @@ def generar_contenido(req: GenerateRequest):
         )
         generated_text = response.choices[0].message.content
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en la IA: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en la IA de Groq: {str(e)}")
 
     # 4. Descontar crédito
     new_credits = credits_left - 1
