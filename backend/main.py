@@ -38,8 +38,10 @@ def generar_contenido(req: GenerateRequest):
     user_data = res.data
 
     if isinstance(user_data, str):
-        try: user_data = json.loads(user_data)
-        except Exception: user_data = []
+        try:
+            user_data = json.loads(user_data)
+        except Exception:
+            user_data = []
 
     # 2. Control de créditos
     if not user_data:
@@ -82,5 +84,4 @@ def generar_contenido(req: GenerateRequest):
     return {
         "result": generated_text,
         "credits_left": new_credits
-    }
     }
