@@ -7,10 +7,11 @@ from supabase import create_client, Client
 
 app = FastAPI(title="Generador de Contenido SaaS")
 
-# Forzar conexión directa a la API de Groq
 groq_key = os.getenv("GROQ_API_KEY")
+
+# Forzar la URL base del servidor de Groq
 openai_client = OpenAI(
-    api_key=groq_key,
+    api_key=groq_key or "missing_key",
     base_url="https://api.groq.com/openai/v1"
 )
 
@@ -28,6 +29,12 @@ def home():
 
 @app.post("/api/v1/generar")
 def generar_contenido(req: GenerateRequest):
+    if not groq_key or "gsk_" not in groq_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Falta configurar la variable GROQ_API_KEY correctamente en el panel de Render."
+        )
+
     email = req.email.strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="El correo electrónico es obligatorio.")
@@ -55,7 +62,7 @@ def generar_contenido(req: GenerateRequest):
             detail="Has agotado tus 3 créditos gratuitos. Haz clic en 'Comprar más créditos' para continuar."
         )
 
-    # 3. Generación con modelo activo de Groq
+    # 3. Llamada al modelo Llama 3.3 en Groq
     try:
         response = openai_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
