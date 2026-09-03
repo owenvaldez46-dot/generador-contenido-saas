@@ -57,12 +57,12 @@ def generar_contenido(req: GenerateRequest):
             detail="Has agotado tus 3 créditos gratuitos. Haz clic en 'Comprar más créditos' para continuar."
         )
 
-    # 3. Petición nativa a la API de Groq
+    # 3. Llamada al modelo Llama 3.1 instant de Groq
     try:
         client = Groq(api_key=groq_key)
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": "Eres un Copywriter profesional y estratega de contenido viral."},
                 {"role": "user", "content": req.prompt}
