@@ -1,53 +1,45 @@
 import streamlit as st
 import requests
 
-BACKEND_URL = "https://generador-contenido-saas.onrender.com"
+st.set_page_config(page_title="Generador de Contenido", page_icon="⚡")
 
-# Enlace a tu pasarela de pagos (reemplazar con tu link real cuando lo crees)
-PAYMENT_LINK = "https://lemon-squeezy.com" 
-
-st.set_page_config(page_title="Generador Viral SaaS", page_icon="⚡", layout="centered")
 st.title("⚡ Generador de Contenido & Guiones Virales")
 
-# Barra lateral
-st.sidebar.header("Acceso de Usuario")
-email = st.sidebar.text_input("Ingresa tu correo:", placeholder="ejemplo@correo.com")
+# URL de tu backend en Render
+BACKEND_URL = "https://tu-backend-en-render.onrender.com/api/v1/generar"  # <-- Reemplaza con tu URL real
+PAYMENT_LINK = "https://stripe.com"  # <-- Tu enlace de pago
 
-if not email:
-    st.warning("👈 Por favor, ingresa tu correo en la barra lateral para comenzar.")
-else:
-    st.sidebar.success("Sesión activa")
-    
-    # Sección comercial
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("💳 Planes y Créditos")
-    st.sidebar.link_button("🚀 Comprar Más Créditos", PAYMENT_LINK, use_container_width=True)
-    st.sidebar.markdown("---")
-    
-    prompt = st.text_area("¿Qué contenido deseas crear?", placeholder="Ej: Escribe un guion viral para un video corto sobre las pirámides...")
-    
-    if st.button("Generar Contenido", type="primary"):
-        if not prompt.strip():
-            st.error("Escribe una instrucción antes de generar.")
-        else:
-            with st.spinner("Procesando tu contenido..."):
-                try:
-                    response = requests.post(
-                        f"{BACKEND_URL}/api/v1/generar",
-                        json={"email": email, "prompt": prompt}
-                    )
+# Usamos st.form para asegurar que Streamlit tome el correo nuevo al hacer clic
+with st.form("formulario_generacion"):
+    email = st.text_input("Tu Correo Electrónico", placeholder="ejemplo@correo.com")
+    prompt = st.text_area("¿Qué contenido deseas crear?", placeholder="Ejemplo: Escribe un guion para un Short...")
+    submitted = st.form_submit_button("Generar Contenido", type="primary")
+
+if submitted:
+    if not email:
+        st.warning("Por favor, ingresa tu correo electrónico.")
+    elif not prompt:
+        st.warning("Por favor, ingresa la idea para tu contenido.")
+    else:
+        with st.spinner("Generando contenido con IA..."):
+            try:
+                response = requests.post(
+                    BACKEND_URL,
+                    json={"email": email.strip().lower(), "prompt": prompt}
+                )
+                data = response.json()
+
+                if response.status_code == 200:
+                    st.success("¡Contenido generado!")
+                    st.markdown(data.get("result"))
                     
-                    try: data = response.json()
-                    except Exception: data = None
-
-                    if response.status_code == 200 and data:
-                        st.success("¡Contenido generado!")
-                        st.markdown(data.get("result", ""))
-                        st.sidebar.info(f"🎁 Créditos restantes: {data.get('credits_left', 0)}")
-                    elif data and "detail" in data:
-                        st.error(f"❌ {data['detail']}")
-                    else:
-                        st.error(f"❌ Error del servidor ({response.status_code})")
-
-                except Exception as e:
-                    st.error(f"Error de conexión: {e}")
+                    credits = data.get("credits_left", 0)
+                    email_proc = data.get("email", email)
+                    st.info(f"💳 Créditos restantes para {email_proc}: {credits}")
+                else:
+                    error_msg = data.get("detail", "Error al procesar la solicitud.")
+                    st.error(f"❌ {error_msg}")
+                    if "agotado" in error_msg.lower():
+                        st.link_button("🛒 Comprar más créditos", PAYMENT_LINK)
+            except Exception as e:
+                st.error(f"Error de conexión con el servidor: {e}")
