@@ -7,7 +7,6 @@ from supabase import create_client, Client
 
 app = FastAPI(title="Generador de Contenido SaaS")
 
-# Configuración de Supabase
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
@@ -26,14 +25,14 @@ def generar_contenido(req: GenerateRequest):
     if not groq_key or not groq_key.startswith("gsk_"):
         raise HTTPException(
             status_code=500, 
-            detail="Error: La variable GROQ_API_KEY no está configurada o no empieza por 'gsk_' en Render."
+            detail="Error: La variable GROQ_API_KEY no está configurada correctamente en Render."
         )
 
     email = req.email.strip().lower()
     if not email:
         raise HTTPException(status_code=400, detail="El correo electrónico es obligatorio.")
 
-    # 1. Consulta en Supabase para obtener el usuario
+    # 1. Consulta en Supabase
     res = supabase.table("profiles").select("*").eq("email", email).execute()
     user_data = res.data
 
@@ -43,36 +42,29 @@ def generar_contenido(req: GenerateRequest):
         except Exception:
             user_data = []
 
-    # 2. Control y creación de créditos de usuario
+    # 2. Verificar o inicializar usuario
     if not user_data:
-        new_user = {"email": email, "credits": 3}
-        supabase.table("profiles").insert(new_user).execute()
         credits_left = 3
     else:
         row = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else user_data
         credits_left = row.get("credits", 3) if isinstance(row, dict) else 3
 
+    # 3. Validar créditos disponibles
     if credits_left <= 0:
         raise HTTPException(
             status_code=400, 
-            detail="Has agotado tus créditos gratuitos. Haz clic en 'Comprar más créditos' para continuar."
+            detail="Has agotado tus 3 créditos gratuitos. Haz clic en 'Comprar más créditos' para continuar."
         )
 
-    # 3. Llamada al mejor modelo de Groq (openai/gpt-oss-120b)
+    # 4. Generar respuesta con Groq
     try:
         client = Groq(api_key=groq_key)
-
         response = client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system", 
-                    "content": (
-                        "Eres un Copywriter experto y estratega de contenido viral para redes sociales "
-                        "(YouTube Shorts, TikTok, Instagram Reels). Tus guiones deben ser altamente adictivos, "
-                        "con un gancho potente en los primeros 3 segundos, desarrollo dinámico y una llamada "
-                        "a la acción directa."
-                    )
+                    "content": "Eres un Copywriter experto y estratega de contenido viral para redes sociales."
                 },
                 {"role": "user", "content": req.prompt}
             ],
@@ -82,9 +74,9 @@ def generar_contenido(req: GenerateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en la IA de Groq: {str(e)}")
 
-    # 4. Descontar crédito en Supabase
+    # 5. Restar crédito y guardar usando upsert
     new_credits = credits_left - 1
-    supabase.table("profiles").update({"credits": new_credits}).eq("email", email).execute()
+    supabase.table("profiles").upsert({"email": email, "credits": new_credits}).execute()
 
     return {
         "result": generated_text,
