@@ -85,4 +85,3 @@ def generar_contenido(req: GenerateRequest):
         "credits_left": new_credits,
         "email": email
     }
-    }
